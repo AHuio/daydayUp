@@ -112,3 +112,176 @@ mysql> show variables like 'autocommit';
 > **REPEATABLE READ(可重读)**：只有当前事务提交才能看见另一个事务的修改结果。解决了一个事务中两次查询的结果不同的问题。
 > **SERIALIZABLE(串行化)**：只有一个事务提交之后才会执行另一个事务。
 
+**4、MySQL查询修改隔离级别：**
+
+```sql
+# MySQL版本 8.0.15:
+mysql> show variables like 'transaction_isolation';
++-----------------------+-----------------+
+| Variable_name         | Value           |
++-----------------------+-----------------+
+| transaction_isolation | REPEATABLE-READ |
++-----------------------+-----------------+
+1 row in set, 1 warning (0.00 sec)
+
+# 修改隔离级别：
+mysql> set transaction_isolation='read-committed';
+Query OK, 0 rows affected (0.01 sec)
+
+mysql> show variables like 'transaction_isolation';
++-----------------------+----------------+
+| Variable_name         | Value          |
++-----------------------+----------------+
+| transaction_isolation | READ-COMMITTED |
++-----------------------+----------------+
+1 row in set, 1 warning (0.00 sec)
+```
+
+**5、死锁问题：**
+
+两个或多个事务在同一资源上相互占用并请求锁定对方占用的资源，从而导致恶性循环的现象。MySQL的部分存储引擎能够检测到死锁的循环依赖并产生相应的错误。**InnoDB**引擎解决死锁的方案是**将持有最少排它锁的事务进行回滚**。
+
+## MySQL存储引擎及应用方案
+
+```sql
+mysql> use mysql;
+Database changed
+# 在MySQL的sql语句后加上\G，表示将查询结果进行按列打印，可以使每个字段打印到单独的行；即将查到的结构旋转90度变成纵向。
+mysql> show table status like 'user'\G
+*************************** 1. row ***************************
+           Name: user
+         Engine: InnoDB
+        Version: 10
+     Row_format: Dynamic
+           Rows: 6
+ Avg_row_length: 2730
+    Data_length: 16384
+Max_data_length: 0
+   Index_length: 0
+      Data_free: 4194304
+ Auto_increment: NULL
+    Create_time: 2019-04-12 09:06:12
+    Update_time: NULL
+     Check_time: NULL
+      Collation: utf8_bin
+       Checksum: NULL
+ Create_options: stats_persistent=0
+        Comment: Users and global privileges
+1 row in set (0.01 sec)
+```
+
+1、MySQL采用插件式的存储引擎架构，可以根据不同的需求为不同的表设置不同的存储引擎，可以通过上面的命令形式显示数据库中表的状态信息，以**user**表为例，显示如下：
+
+> **Name**：显示的是表名
+> **Engine**：显示存储引擎，该表存储引擎为MyISAM
+> **Row_format**：显示行格式，对于MyISAM有Dynamic、Fixed和**Compressed**三种。非别表示表中有可变的数据类型，表中数据类型为固定的，以及表是压缩表的环境。
+> **Rows**：显示表中行数
+> **Avg_row_length**：平均行长度（字节）
+> **Data_length**：数据长度（字节）
+> **Max_data_length**：最大存储数据长度（字节）
+> **Data_free**：已分配但未使用的空间，包括删除数据空余出来的空间
+> **Auto_increment**：下一个插入行自动增长字段的值
+> **Create_time**：表的创建时间
+> **Update_time**：表数据的最后修改时间
+> **Collation**：表的默认字符集及排序规则
+> **Checksum**：如果启用，表示整个表的实时校验和
+> **Create_options**：创建表示的一些其它选项
+> **Comment**：额外的一些注释信息，根据存储引擎的不同表示的内容也不胫相同。
+
+**2、存储引擎介绍：**
+
+> **InnoDB引擎**： 
+
+1.将数据存储在表空间中，表空间由一系列的数据文件组成，由InnoDB管理；
+2.支持每个表的数据和索引存放在单独文件中(innodb_file_per_table)；
+3.支持事务，采用MVCC来控制并发，并实现标准的4个事务隔离级别，支持外键；
+4.索引基于聚簇索引建立，对于主键查询有较高性能；
+5.数据文件的平台无关性，支持数据在不同的架构平台移植；
+6.能够通过一些工具支持真正的热备。如XtraBackup等；
+7.内部进行自身优化如采取可预测性预读，能够自动在内存中创建hash索引等。
+
+> **MyISAM引擎**： 
+
+1.MySQL5.1中默认，不支持事务和行级锁；
+2.提供大量特性如全文索引、空间函数、压缩、延迟更新等；
+3.数据库故障后，安全恢复性差；
+4.对于只读数据可以忍受故障恢复，MyISAM依然非常适用；
+5.日志服务器的场景也比较适用，只需插入和数据读取操作；
+6.不支持单表一个文件，会将所有的数据和索引内容分别存在两个文件中；
+7.MyISAM对整张表加锁而不是对行，所以不适用写操作比较多的场景；
+8.支持索引缓存不支持数据缓存。
+
+> **Archive引擎**： 
+
+1.只支持insert和select操作；
+2.缓存所有的写数据并进行压缩存储，支持行级锁但不支持事务；
+3.适合高速插入和数据压缩，减少IO操作，适用于日志记录和归档服务器。
+
+> **Blackhole引擎**： 
+
+1.没有实现任何存储机制，会将插入的数据进行丢弃，但会存储二进制日志；
+2.会在一些特殊需要的复制架构的环境中使用。
+
+> **CSV引擎**： 
+
+1.可以打开CSV文件存储的数据，可以将存储的数据导出，并利用excel打开；
+2.可以作为一种数据交换的机制，同样经常使用。
+
+> **Memory引擎**：
+
+1.将数据在内存中缓存，不消耗IO；
+2.存储数据速度较快但不会被保留，一般作为临时表的存储被使用。
+
+> **Federated引擎**： 
+
+能够访问远程服务器上的数据的存储引擎。能够建立一个连接连到远程服务器。
+
+> **Mrg_MyISAM引擎**： 
+
+将多个MYISAM表合并为一个。本身并不存储数据，数据存在MyISAM表中间。
+
+> **NDB集群引擎**： 
+
+MySQL Cluster专用。
+
+**3、第三方存储引擎：**
+
+> **1.OLTP类**： 
+
+**XtraDB**：InnoDB的改进版本。
+**PBXT**：类似InnoDB，但提供引擎级别的复制和外键约束，适当支持SSD存储。
+**TokuDB(开源)**：支持分形树索引结构，支持海量数据的分析。
+
+> 2.**列式存储引擎**：MySQL默认是面向行的存储 
+
+**Infobright**: 支持数十TB的数据量，为数据分析和数据仓库设计的。数据高度压缩。
+**InfiniDB**:可以在一组集群间做分布式查询，有商业版但没有典型应用案例。
+
+> 3.**社区存储引擎**： 
+
+**Aria**：解决MyISAM崩溃安全恢复问题，并能够进行数据缓存。
+**Groona**: 全文索引引擎。
+**QQGraph**: 由Open query研发支持图操作，比如查找两点间最短距离。
+**SphinxSE**: 该引擎为Sphinx全文索引搜索服务器提供SQL接口。
+**Spider**: 支持sharding并能够基于分片实现并列查询。
+**VPForMySQL**: 支持垂直分区。
+
+> 4.**存储引擎选取参考因素** 
+
+**4.1.是否有事务需求**
+ 如果需要事务支持最好选择InnoDB或者XtraDB，如果主要是select和insert操作MyISAM比较合适，一般使用日志型的应用。
+**4.2.备份操作需求**
+如果能够关闭服务器进行备份，那么该因素可以忽略，如果需要在线进行热备份，则InnoDB引擎是一个不错的选择。
+**4.3.故障恢复需求**
+在对恢复要求比较好的场景中推荐使用InnoDB，因为MyISAM数据损坏概率比较大而且恢复速度比较慢。
+**4.4.性能上的需求**
+有些业务需求只有某些特定的存储引擎才能够满足，如地理空间索引也只有MyISAM引擎支持。所以在应用架构需求环境中也需要管理员折衷考虑，当然从各方面比较而言，InnoDB引擎还是默认应该被推荐使用的。
+
+> 5.**表引擎转换方法** 
+
+**5.1.直接修改**
+
+**5.2.备份修改**
+利用mysqldump备份工具将数据导出，修改create table语句中的存储引擎选项。注意修改的同时修改表名。
+**5.3.创建插入**
+
