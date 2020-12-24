@@ -193,7 +193,7 @@ DML语言（**Data Manipulation Language**）：数据操作语言
 
 - **insert**  插入语句
 
-  > insert into 表名（字段名1,字段名2,...）values ('值1','值2',....)，（'值21','值22'...）
+  > insert into 表名（字段名1,字段名2,...）values ('值1','值2',....)，（'值21','值22'...）；
 
   **注意事项**：
 
@@ -205,11 +205,33 @@ DML语言（**Data Manipulation Language**）：数据操作语言
 
 - **update**
 
+  > update 表名 set 列名=新值,[colnum_name=value,...] [where 条件];   # 修改多个列属性，用逗号隔开！
+
 - **delete**
+
+  > delete from 表名  [where 条件]；
 
 - **truncate** 
 
+  > **作用：完全清空一个表，表的结构和索引不会变**
+  >
+  > truncate table 表名；
 
+> **delete 与 truncated的区别：**
+
+​	**相同点**：都能删除数据，都不会删除表结构！
+
+​	**不同点：** 
+
+​		1、**TRUNCATED** 重新设置 自增列 计数器会归零。
+
+​		2、**TRUNCATED** 不会影响事务	
+
+### 2.3、DQL语言（最重点）
+
+​	**DQL**（Data Query Language 数据查询语言）
+
+> 去重：**distinct**
 
 
 
