@@ -231,7 +231,43 @@ DML语言（**Data Manipulation Language**）：数据操作语言
 
 ​	**DQL**（Data Query Language 数据查询语言）
 
+select ....
+
 > 去重：**distinct**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
