@@ -1,4 +1,4 @@
-### **==JAVA 执行系统的主流实现以及设计决策==**
+### Part1: JAVA 执行系统的主流实现以及设计决策
 
 #### Q1：为什麽JAVA要在虚拟机里运行？        
 ​    JAVA作为一门高级程序语言，它的语法非常复杂，抽象程度也很高。因此，直接在硬件上运行这种复杂的程序并不现实。所以，在运行JAVA程序之前，需要对其进行一番转换。
@@ -11,6 +11,8 @@
 
 ​	除此之外，托管环境还提供了诸如数组越界、动态类型、安全权限等等的动态检测，使得我们免于书写这些无关业务逻辑的代码。
 
+----
+
 #### Q2：JAVA虚拟机具体是怎样运行JAVA字节码的？
 ​	下面以标准JDK中的HotSpot虚拟机为例，从虚拟机以及底层硬件两个角度，讲述JAVA虚拟机具体是如何运行JAVA字节码的。
 
@@ -18,7 +20,7 @@
 
 ​	**JAVA虚拟机在内存中划分出堆和栈来存储运行时数据。**
 
-​	**JAVA虚拟机会将栈细分为面向JAVA方法的JAVA方法栈，面向本地方法（用C++写的native方法）的本地方法栈，以及存放各个线程执行位置的PC寄存器**。
+​	**JAVA虚拟机会将栈细分为面向JAVA方法的JAVA方法栈，面向本地方法（用C++写的native方法）的本地方法栈；以及存放各个线程执行位置的PC寄存器**。
 
 ![01-figure1](/01-figure1.png) 
 
@@ -32,4 +34,52 @@
 
 ![01-figure2](/01-figure2.png)
 
-​	前者的优势在于无需等待编译，而后者的优势在于实际运行速度更快。HotSpot
+​	前者的优势在于无需等待编译，而后者的优势在于实际运行速度更快。HotSpot采用混合模式，综合使用解释执行和即时编译两者的优点，它会先解释执行字节码，而后将其中反复执行的热点代码，以**方法为单位进行即时编译。**
+
+----
+
+#### Q3：JAVA虚拟机的运行效率究竟是怎样的？
+
+​	HotSpot采用了多种技术来提升**启动性能**和**峰值性能**，上面提到的即时编译便是其中最重要的技术之一。即时编译建立在程序符合二八定律的假设上，也就是百分之二十的代码占据了百分之八十的计算资源。
+
+​	对于占据大部分的不常用的代码，无需耗费时间将其编译为机器码，而是采用解释执行的方式运行；另一方面，对于仅占小部分的热点代码，则可以将其编译成机器码，以达到理想的运行速度。
+
+​	为了满足不同用户场景的需要，HotSpot内置了多个即时编译器：**C1** 、**C2**和**Graal**。**Graal**是JAVA10正式引入的实验性即时编译器。
+
+​	 **C1**叫做Client编译器，面向的是对启动性能有要求的客户端GUI程序，采用的优化手段相对简单，因此编译时间较短。
+
+​	**C2**叫做Server编译器，面向的是对峰值性能有要求的服务器端程序，采用的手段相对复杂，因此编译时间较长，但同时生成代码的执行效率较高。
+
+​	JAVA7开始，HotSpot默认采用分层编译的方式：**热点方法首先会被C1编译，而后热点方法中的热点会进一步被C2编译。**
+
+​	为了不干扰应用的正常运行，HotSpot的即时编译是放在额外的编译线程中进行的。HotSpot会根据CPU的数量设置编译线程的数目，并且按照1：2的比例配置给C1及C2编译器。
+
+​	在计算资源充足的情况下，字节码的解释执行和即时编译可同时进行。编译完成的机器码会在下次调用该方法时启用，以替换原本的解释执行。
+
+----
+
+#### A Question:
+
+​	通过观察两个条件判断语句的运行结果，来思考 Java 语言和 Java 虚拟机看待 boolean 类型的方式是否不同。
+
+​	下载 asmtools.jar  [[tps://wiki.openjdk.java.net/display/CodeTools/asmtools](https://wiki.openjdk.java.net/display/CodeTools/asmtools)]  或者参考博客[https://www.cnblogs.com/yelongsan/p/9674723.html]下载，并在命令行中运行下述指令（不包含提示符 $）：
+
+`java`
+
+```shell
+$ echo '
+public class Foo {
+ public static void main(String[] args) {
+  boolean flag = true;
+  if (flag) System.out.println("Hello, Java!");
+  if (flag == true) System.out.println("Hello, JVM!");
+ }
+}' > Foo.java
+$ javac Foo.java
+$ java Foo
+$ java -cp /path/to/asmtools.jar org.openjdk.asmtools.jdis.Main Foo.class > Foo.jasm.1
+$ awk 'NR==1,/iconst_1/{sub(/iconst_1/, "iconst_2")} 1' Foo.jasm.1 > Foo.jasm
+$ java -cp /path/to/asmtools.jar org.openjdk.asmtools.jasm.Main Foo.jasm
+$ java Foo
+
+```
